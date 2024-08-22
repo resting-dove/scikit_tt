@@ -146,3 +146,24 @@ class TestODE(TestCase):
         # check if converged to stationary distribution
         self.assertLess(derivative_ie, self.tol)
         self.assertLess(derivative_tr, self.tol)
+
+    def test_krylov(self):
+        """test for Krylov subspace method"""
+
+        # compute numerical solution of the ODE
+        operator = mdl.signaling_cascade(2).tt2qtt([[2] * 2] * 2, [[2] * 2] * 2)
+        initial_value = tt.unit(operator.row_dims, [0] * operator.order)
+        step_size = 0.1
+        # krylov(operator: 'TT', initial_value: 'TT', dimension: int, step_size: float, threshold: float=1e-12, max_rank: int=50, normalize: int=0)
+        solution = ode.krylov(operator, initial_value, dimension=2, step_size=step_size)
+        solution = np.squeeze(solution.matricize())
+        solution_mat = splin.expm_multiply(step_size * -1j * operator.matricize(),
+                                           np.squeeze(initial_value.matricize()))
+
+        # check if matrix- and tensor-based results are sufficiently close
+        solution2 = ode.explicit_euler(-1j*operator, initial_value, [step_size], progress=False, threshold=1e-14,
+                                       max_rank=15)
+        solution2 = np.squeeze(solution2[-1].matricize())
+        print(f"explicit: {np.linalg.norm(solution2 - solution_mat)}")
+        print(f"krylov: {np.linalg.norm(solution - solution_mat)}")
+        self.assertLess(np.linalg.norm(solution - solution_mat), 1e-3)
